@@ -338,10 +338,54 @@ async function processCallback() {
 export function finishLogin() {
   // Repeated React effects share one token-exchange promise.
   if (!callbackPromise) {
-    callbackPromise = processCallback().catch(() => {
+    callbackPromise = processCallback().catch(error => {
+      const knownMessages = {
+        'Login request is invalid or expired. Please sign in again.':
+          'LOGIN_REQUEST_INVALID',
+        'Authorization was not completed. Please sign in again.':
+          'AUTHORIZATION_FAILED',
+        'Authorization code is missing or invalid. Please sign in again.':
+          'AUTHORIZATION_CODE_INVALID',
+        'Token exchange failed or returned an invalid response.':
+          'TOKEN_RESPONSE_INVALID',
+        'Invalid login identity or nonce.':
+          'IDENTITY_OR_NONCE_INVALID',
+        'Invalid ID token timestamps.':
+          'ID_TOKEN_TIMESTAMPS_INVALID',
+        'Invalid authorized client.':
+          'AUTHORIZED_CLIENT_INVALID',
+        'Access token binding did not match.':
+          'ACCESS_TOKEN_BINDING_INVALID',
+        'Login was cancelled or expired.':
+          'LOGIN_CANCELLED_OR_EXPIRED'
+      };
+
+      const allowedCodes = new Set([
+        'ERR_JWT_EXPIRED',
+        'ERR_JWT_CLAIM_VALIDATION_FAILED',
+        'ERR_JWS_SIGNATURE_VERIFICATION_FAILED',
+        'ERR_JWKS_TIMEOUT',
+        'ERR_JWKS_NO_MATCHING_KEY',
+        'ERR_JWKS_INVALID',
+        'ERR_JOSE_GENERIC'
+      ]);
+
+      let code = knownMessages[error?.message];
+
+      if (!code && allowedCodes.has(error?.code)) {
+        code = error.code;
+      }
+
+      if (!code) {
+        code =
+          error?.name === 'TimeoutError' ? 'REQUEST_TIMEOUT' :
+          error?.name === 'AbortError' ? 'REQUEST_ABORTED' :
+          error?.name === 'TypeError' ? 'BROWSER_OR_NETWORK_ERROR' :
+          'LOGIN_VERIFICATION_UNKNOWN';
+      }
+
       throw new Error(
-        'Login verification failed. Please start a fresh sign-in. ' +
-        'If it repeats, check the token/JWKS requests and your system clock.'
+        `Sign-in failed (${code}). Please start a fresh sign-in.`
       );
     });
   }
